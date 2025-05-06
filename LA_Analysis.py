@@ -1,100 +1,114 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
+import seaborn as sns
+import matplotlib.pyplot as plt
 
-# Load data
-df = pd.read_csv('../DataSets/LP_Train.csv')
+st.set_page_config(page_title="Loan Approval Data Analysis", layout="wide")
 
-# Clean and preprocess
-df = df.dropna()
-df['Dependents'] = df['Dependents'].replace("3+", "3").astype(float)
-df['CoapplicantIncome'] = df['CoapplicantIncome'].astype('int64')
-df['Loan_Status'] = df['Loan_Status'].replace({'N': 'No', 'Y': 'Yes'})
-df['TotalIncome'] = df['ApplicantIncome'] + df['CoapplicantIncome']
-df['IsHighIncome'] = df['TotalIncome'] > 5000
+st.title("📊 Loan Approval Data Analysis using Streamlit + Plotly")
 
-# Update Loan Term
-term_map = {360: 36, 120: 12, 180: 18, 60: 6, 300: 30, 480: 48, 240: 24}
-df['Loan_Amount_Term'] = df['Loan_Amount_Term'].astype('int64').replace(term_map)
+# Upload CSV
+uploaded_file = st.file_uploader("Upload your Loan Prediction CSV file", type=["csv"])
+if uploaded_file is not None:
+    df = pd.read_csv(uploaded_file)
 
-# App Layout
-st.set_page_config(page_title='Loan Approval Analysis', layout='wide')
-st.title("📊 Loan Approval Exploratory Analysis")
-st.markdown("Interactive insights based on loan application data.")
+    # Preprocessing
+    df = df.dropna()
+    df['Dependents'] = df['Dependents'].replace("3+", "3").astype('float64')
+    df['CoapplicantIncome'] = df['CoapplicantIncome'].astype('int64')
+    df['Loan_Status'] = df['Loan_Status'].replace({'Y': 'Yes', 'N': 'No'})
+    df['TotalIncome'] = df['ApplicantIncome'] + df['CoapplicantIncome']
+    df['IsHighIncome'] = df['TotalIncome'] > 5000
+    df['Loan_Amount_Term'] = df['Loan_Amount_Term'].astype('int64')
+    df['Loan_Amount_Term'] = df['Loan_Amount_Term'].replace({
+        360: 36, 120: 12, 180: 18, 60: 6, 300: 30, 480: 48, 240: 24
+    })
 
-# Sidebar filters
-st.sidebar.header("🔎 Filter Options")
-gender = st.sidebar.multiselect("Select Gender", df['Gender'].unique(), default=df['Gender'].unique())
-married = st.sidebar.multiselect("Select Marital Status", df['Married'].unique(), default=df['Married'].unique())
-education = st.sidebar.multiselect("Select Education", df['Education'].unique(), default=df['Education'].unique())
-property_area = st.sidebar.multiselect("Select Property Area", df['Property_Area'].unique(), default=df['Property_Area'].unique())
+    st.subheader("🔍 Data Preview")
+    st.dataframe(df.head())
 
-# Filter data
-filtered_df = df[
-    df['Gender'].isin(gender) &
-    df['Married'].isin(married) &
-    df['Education'].isin(education) &
-    df['Property_Area'].isin(property_area)
-]
+    st.subheader("📉 Descriptive Statistics")
+    st.write(df.describe())
 
-st.subheader("✅ Loan Status Distribution")
-fig1 = px.histogram(filtered_df, x='Loan_Status', color='Loan_Status', barmode='group')
-st.plotly_chart(fig1, use_container_width=True)
+    st.subheader("🧼 Missing Values (after dropping NAs)")
+    st.write(df.isnull().sum())
 
-# Gender and Loan Status
-st.subheader("👥 Gender vs Loan Status")
-fig2 = px.histogram(filtered_df, x='Gender', color='Loan_Status', barmode='group')
-st.plotly_chart(fig2, use_container_width=True)
+    st.subheader("📌 Loan Status Distribution")
+    loan_status_fig = px.pie(df, names='Loan_Status', title="Loan Approval Distribution", hole=0.3)
+    st.plotly_chart(loan_status_fig)
 
-# Marital Status
-st.subheader("💍 Marital Status vs Loan Approval")
-fig3 = px.histogram(filtered_df, x='Married', color='Loan_Status', barmode='group')
-st.plotly_chart(fig3, use_container_width=True)
+    st.subheader("👫 Gender vs Loan Approval")
+    gender_status = pd.crosstab(df['Gender'], df['Loan_Status'])
+    gender_fig = px.bar(gender_status, barmode='group', title="Loan Approval by Gender")
+    st.plotly_chart(gender_fig)
 
-# Education and Approval
-st.subheader("🎓 Education vs Loan Approval")
-fig4 = px.histogram(filtered_df, x='Education', color='Loan_Status', barmode='group')
-st.plotly_chart(fig4, use_container_width=True)
+    st.subheader("💍 Marital Status vs Loan Approval")
+    marital_status = pd.crosstab(df['Married'], df['Loan_Status'])
+    marital_fig = px.bar(marital_status, barmode='group', title="Loan Approval by Marital Status")
+    st.plotly_chart(marital_fig)
 
-# Self-Employment
-st.subheader("💼 Self Employment vs Loan Status")
-fig5 = px.histogram(filtered_df, x='Self_Employed', color='Loan_Status', barmode='group')
-st.plotly_chart(fig5, use_container_width=True)
+    st.subheader("👶 Dependents vs Loan Approval")
+    dep_fig = px.box(df, x='Loan_Status', y='Dependents', title="Dependents and Loan Status")
+    st.plotly_chart(dep_fig)
 
-# Applicant Income Boxplot
-st.subheader("📈 Applicant Income Distribution by Loan Status")
-fig6 = px.box(filtered_df, x='Loan_Status', y='ApplicantIncome', color='Loan_Status')
-st.plotly_chart(fig6, use_container_width=True)
+    st.subheader("🎓 Education vs Loan Approval")
+    edu_status = pd.crosstab(df['Education'], df['Loan_Status'])
+    edu_fig = px.bar(edu_status, barmode='group', title="Loan Approval by Education")
+    st.plotly_chart(edu_fig)
 
-# Loan Amount vs Total Income
-st.subheader("💰 Total Income vs Loan Amount")
-fig7 = px.scatter(filtered_df, x='TotalIncome', y='LoanAmount', color='Loan_Status', size='LoanAmount')
-st.plotly_chart(fig7, use_container_width=True)
+    st.subheader("💼 Self Employment vs Loan Approval")
+    emp_status = df.groupby(['Self_Employed', 'Loan_Status']).size().unstack()
+    emp_fig = px.bar(emp_status, barmode='group', title="Loan Approval by Self-Employment")
+    st.plotly_chart(emp_fig)
 
-# Property Area vs Loan Status
-st.subheader("🏘️ Property Area vs Loan Status")
-fig8 = px.histogram(filtered_df, x='Property_Area', color='Loan_Status', barmode='group')
-st.plotly_chart(fig8, use_container_width=True)
+    st.subheader("💰 Applicant Income vs Loan Status")
+    app_inc_fig = px.box(df, x='Loan_Status', y='ApplicantIncome', title="Applicant Income and Loan Status")
+    st.plotly_chart(app_inc_fig)
 
-# Loan Amount Term Analysis
-st.subheader("📆 Loan Amount Term vs Loan Status")
-fig9 = px.histogram(filtered_df, x='Loan_Amount_Term', color='Loan_Status', barmode='group')
-st.plotly_chart(fig9, use_container_width=True)
+    st.subheader("👫 Co-applicant Income Distribution")
+    co_app_fig = px.histogram(df, x='CoapplicantIncome', color='Loan_Status', nbins=50, title="Co-applicant Income and Loan Status")
+    st.plotly_chart(co_app_fig)
 
-# Credit History Impact
-st.subheader("🧾 Credit History vs Loan Status")
-fig10 = px.histogram(filtered_df, x='Credit_History', color='Loan_Status', barmode='group')
-st.plotly_chart(fig10, use_container_width=True)
+    st.subheader("📈 Total Income vs Loan Amount")
+    income_vs_loan = px.scatter(df, x='TotalIncome', y='LoanAmount', color='Loan_Status', trendline="ols", title="Total Income vs Loan Amount")
+    st.plotly_chart(income_vs_loan)
 
-# Heatmap for Correlation
-st.subheader("🔗 Correlation Heatmap")
-numeric_df = filtered_df[['ApplicantIncome', 'CoapplicantIncome', 'LoanAmount', 'Loan_Amount_Term', 'Credit_History', 'TotalIncome']]
-corr = numeric_df.corr()
-fig11 = px.imshow(corr, text_auto=True, color_continuous_scale='Blues')
-st.plotly_chart(fig11, use_container_width=True)
+    st.subheader("🏠 Loan Amount vs Gender, Marital Status, and Education")
+    col1, col2, col3 = st.columns(3)
 
-# Footer
-st.markdown("---")
-st.markdown("Made with ❤️ using Streamlit and Plotly")
+    with col1:
+        fig1 = px.bar(df, x='Gender', y='LoanAmount', color='Loan_Status', title="Gender vs Loan Amount")
+        st.plotly_chart(fig1)
 
+    with col2:
+        fig2 = px.strip(df, x='Married', y='LoanAmount', color='Loan_Status', title="Married vs Loan Amount")
+        st.plotly_chart(fig2)
+
+    with col3:
+        fig3 = px.violin(df, x='Education', y='LoanAmount', color='Loan_Status', title="Education vs Loan Amount", box=True)
+        st.plotly_chart(fig3)
+
+    st.subheader("📊 Credit History vs Loan Approval")
+    credit_status = pd.crosstab(df['Credit_History'], df['Loan_Status'])
+    credit_fig = px.bar(credit_status, barmode='group', title="Loan Approval by Credit History")
+    st.plotly_chart(credit_fig)
+
+    st.subheader("⏳ Loan Term vs Loan Approval")
+    term_status = pd.crosstab(df['Loan_Amount_Term'], df['Loan_Status'])
+    term_fig = px.bar(term_status, barmode='group', title="Loan Approval by Loan Term")
+    st.plotly_chart(term_fig)
+
+    st.subheader("🏡 Property Area vs Loan Approval")
+    property_status = pd.crosstab(df['Property_Area'], df['Loan_Status'])
+    property_fig = px.bar(property_status, barmode='group', title="Loan Approval by Property Area")
+    st.plotly_chart(property_fig)
+
+    st.subheader("📍 Property Area vs Loan Amount")
+    area_fig = px.line(df, x='Property_Area', y='LoanAmount', color='Loan_Status', title="Property Area and Loan Amount")
+    st.plotly_chart(area_fig)
+
+else:
+    st.warning("Please upload a CSV file to begin the analysis.")
